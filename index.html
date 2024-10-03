@@ -41,7 +41,6 @@
             text-transform: uppercase;
             font-weight: normal;
             width: 70px;
-            border: 1px solid #dbdbdb;
         }
         .day-name.m-selected {
             background-color: #e5e5e5;
@@ -76,8 +75,8 @@
             border-left: none;
             transition: background-color 0.3s ease;
         }
-        .hour-cell:hover {
-            background-color: #e9e9e9;
+        .hour-cell:hover, .hour-cell.selected-hour:hover {
+            background-color: #bdbdbd;
             cursor: pointer;
         }
         .hour-cell.selected-hour {
@@ -233,25 +232,30 @@
                 const hourCell = document.createElement('div');
                 hourCell.classList.add('hour-cell');
                 hourCell.dataset.day = day;
-                hourCell.dataset.hour = hour;
+                hourCell.dataset.hour = hour.toString();
 
                 if (isHourSelected(day, hour)) {
                     hourCell.classList.add('selected-hour');
                     isAllDaySelected++;
                 }
 
-                hourCell.addEventListener('mousedown', () => {
-                    isMouseDown = true;
-                    toggleHourSelection(day, hour);
-                });
-
-                hourCell.addEventListener('mouseover', () => {
-                    if (isMouseDown) {
-                        toggleHourSelection(day, hour);
-                    }
-                });
+                hourCell.addEventListener('click', (e) => toggleHourSelection(e.target, day, hour));
                 hourCellsDiv.appendChild(hourCell);
             }
+
+            hourCellsDiv.addEventListener('mousedown', () => isMouseDown = true);
+            hourCellsDiv.addEventListener('mouseup', () => {
+                isMouseDown = false;
+                let hourCells = hourCellsDiv.querySelectorAll('.hour-cell');
+                hourCells.forEach(cell => cell.classList.remove('selected-by-move'));
+            });
+            hourCellsDiv.addEventListener('mousemove', (e) => {
+                let elem = e.target;
+                if (isMouseDown && !elem.classList.contains('selected-by-move')) {
+                    elem.classList.add('selected-by-move');
+                    toggleHourSelection(e.target, day, parseInt(e.target.dataset.hour));
+                }
+            });
 
             if (isAllDaySelected === 24)  {
                 allDayDiv.classList.add('m-selected');
@@ -273,13 +277,39 @@
             return scheduleData[day].some(interval => minutes >= interval.BT && minutes < interval.ET);
         }
 
-        function toggleHourSelection(day, hour) {
+        function toggleHourSelection(targetElem, day, hour) {
+            const hourCells = targetElem.closest('.hour-cells').querySelectorAll('.hour-cell');
             const minutes = hour * 60;
             let intervals = scheduleData[day];
             const selected = intervals.some(interval => minutes >= interval.BT && minutes < interval.ET);
-            (selected) ?
-                scheduleData[day] = intervals.filter(interval => !(minutes >= interval.BT && minutes < interval.ET)) :
+            if (selected) {
+                for (let i = 0; i < intervals.length; i++) {
+                    if (minutes >= intervals[i].BT && minutes < intervals[i].ET) {
+                        if (minutes === intervals[i].BT) {
+                            intervals[i].BT = intervals[i].BT + 60;
+                        } else if ((minutes + 59) === intervals[i].ET) {
+                            intervals[i].ET = intervals[i].ET - 60;
+                        } else {
+                            scheduleData[day] = [];
+                            for (let j = 0; j < hourCells.length; j++) {
+                                if (targetElem !== hourCells[j] && hourCells[j].classList.contains('selected-hour')) {
+                                    let bt = parseInt(hourCells[j].dataset.hour) * 60;
+                                    scheduleData[day].push({BT: bt, ET: bt + 60});
+                                }
+                            }
+                        }
+                    }
+                }
+                let normalized = [];
+                for (let j = 0; j < scheduleData[day].length; j++) {
+                    if (scheduleData[day][j] && scheduleData[day][j].BT !== scheduleData[day][j].ET) {
+                        normalized.push(scheduleData[day][j]);
+                    }
+                }
+                scheduleData[day] = normalized;
+            } else {
                 scheduleData[day].push({BT: minutes, ET: minutes + 60});
+            }
             renderScheduler();
         }
 
@@ -319,10 +349,6 @@
             schedulerContainer.appendChild(tableHeaderRow);
             days.forEach(day => createDayRow(day, scheduleData[day]));
         }
-
-        document.addEventListener('mouseup', () => {
-            isMouseDown = false;
-        });
 
         document.getElementById('clearSelection').addEventListener('click', () => {
             days.forEach(day => scheduleData[day] = []);
