@@ -315,12 +315,12 @@
         }
 
         function toggleAllDaySelection(day, allDayDiv) {
-            if (scheduleData[day].length === 0)  {
-                scheduleData[day] = [{BT: 0, ET: 1440}];
-                allDayDiv.classList.add('m-selected');
-            } else {
+            if (allDayDiv.classList.contains('m-selected'))  {
                 scheduleData[day] = [];
                 allDayDiv.classList.remove('m-selected');
+            } else {
+                scheduleData[day] = [{BT: 0, ET: 1440}];
+                allDayDiv.classList.add('m-selected');
             }
             renderScheduler();
         }
